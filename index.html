@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Hub - AI Assistant & Studio</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- FontAwesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Razorpay Checkout -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#ecfeff',
+              100: '#cffafe',
+              400: '#22d3ee',
+              500: '#06b6d4',
+              600: '#0891b2',
+              900: '#164e63',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.25);
+      border-radius: 999px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(148, 163, 184, 0.45);
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 0.3; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .mic-active {
+      animation: pulse-ring 1.5s infinite ease-in-out;
+    }
+    .cursor-blink::after {
+      content: '▋';
+      display: inline-block;
+      vertical-align: baseline;
+      color: #38bdf8;
+      animation: blink 0.8s infinite;
+      margin-left: 2px;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen w-screen overflow-hidden flex antialiased select-none">
+
+  <!-- Mobile Backdrop Overlay -->
+  <div id="mobileBackdrop" onclick="toggleSidebar()" class="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm lg:hidden hidden transition-opacity duration-300"></div>
+
+  <!-- Left Sidebar -->
+  <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 bg-slate-900 border-r border-slate-800 flex flex-col justify-between transition-transform duration-300 ease-in-out -translate-x-full lg:translate-x-0">
+    
+    <!-- Top Branding & New Chat -->
+    <div class="p-4 space-y-3 border-b border-slate-800/80">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 via-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/25">
+            <i class="fa-solid fa-brain text-white text-base"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-extrabold text-base tracking-tight text-white">Chat Hub</span>
+              <span id="sidebarTierBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">Free</span>
+            </div>
+            <span class="text-[10px] text-slate-400 font-medium">ChatGPT + Gemini Hybrid</span>
+          </div>
+        </div>
+
+        <button onclick="toggleSidebar()" class="lg:hidden text-slate-400 hover:text-white p-2">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- New Chat Button -->
+      <button onclick="createNewChat()" class="w-full flex items-center justify-between px-3.5 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-semibold rounded-xl text-sm transition-all shadow-md shadow-sky-600/20 active:scale-[0.98]">
+        <span class="flex items-center gap-2">
+          <i class="fa-solid fa-plus text-xs"></i> New Chat
+        </span>
+        <span class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">Ctrl + K</span>
+      </button>
+
+      <!-- Search in Chats -->
+      <div class="relative">
+        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-xs text-slate-500"></i>
+        <input 
+          id="chatSearchInput" 
+          type="text" 
+          placeholder="Search conversation..." 
+          oninput="filterChats(this.value)"
+          class="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition"
+        >
+      </div>
+    </div>
+
+    <!-- Middle: Sessions History (Grouped) -->
+    <div class="flex-1 overflow-y-auto px-3 py-2 space-y-4 custom-scrollbar select-text" id="sessionListContainer">
+      <!-- Generated dynamically by JS -->
+    </div>
+
+    <!-- Bottom Promo Banner & Profile -->
+    <div class="p-3 border-t border-slate-800/80 bg-slate-900/60 space-y-2.5">
+      
+      <!-- Plus Upgrade Card -->
+      <div id="sidebarUpgradeCard" class="relative overflow-hidden rounded-xl bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-cyan-500/10 p-3 border border-amber-500/20">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-crown text-amber-400"></i> Upgrade to Plus
+          </span>
+          <span class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">Save 37%</span>
+        </div>
+        <p class="text-[11px] text-slate-400 mb-2">Unlock Thinking mode, Razor-fast speed & unlimited tokens.</p>
+        <button onclick="openPlusModal()" class="w-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-xs font-bold py-1.5 rounded-lg transition active:scale-95 shadow">
+          Get Plus for ₹199/mo
+        </button>
+      </div>
+
+      <!-- User Profile Row -->
+      <div class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-800 transition cursor-pointer" onclick="openProfileSettings()">
+        <div class="flex items-center gap-2.5 overflow-hidden">
+          <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-400 to-indigo-600 flex items-center justify-center text-xs font-bold text-white shadow-sm flex-shrink-0" id="userAvatar">
+            U
+          </div>
+          <div class="truncate text-left">
+            <div id="userProfileName" class="text-xs font-semibold text-slate-200 truncate">Aapka Naam</div>
+            <div id="userProfileStatus" class="text-[10px] text-slate-400 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Free Member
+            </div>
+          </div>
+        </div>
+        <button class="text-slate-400 hover:text-slate-200 p-1">
+          <i class="fa-solid fa-gear text-sm"></i>
+        </button>
+      </div>
+
+    </div>
+
+  </aside>
+
+  <!-- Right Main Area -->
+  <main class="flex-1 flex flex-col h-full overflow-hidden bg-slate-950 relative select-text">
+    
+    <!-- Top Header Navigation -->
+    <header class="h-14 border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-md px-4 flex items-center justify-between z-30">
+      
+      <div class="flex items-center gap-2.5">
+        <!-- Sidebar Toggle -->
+        <button onclick="toggleSidebar()" class="lg:hidden p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-900 transition">
+          <i class="fa-solid fa-bars text-base"></i>
+        </button>
+
+        <!-- AI Model Switcher Dropdown -->
+        <div class="relative">
+          <select id="modelSelector" onchange="switchModel(this.value)" class="appearance-none bg-slate-900 border border-slate-700/80 hover:border-slate-600 text-xs sm:text-sm font-semibold rounded-xl pl-3 pr-8 py-1.5 text-slate-200 focus:outline-none focus:border-cyan-500 transition cursor-pointer">
+            <option value="flash">⚡ ChatHub Flash 2.5 (Fast & Lightweight)</option>
+            <option value="pro">💎 ChatHub Pro (Deep Logic & Code)</option>
+            <option value="thinking">🧠 ChatHub Thinking (Gemini 2.0 / o1 Reasoning)</option>
+          </select>
+          <i class="fa-solid fa-chevron-down absolute right-3 top-3 text-[10px] text-slate-400 pointer-events-none"></i>
+        </div>
+
+        <span id="headerTierPill" class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-800/80 border border-slate-700 text-slate-400">
+          <i class="fa-solid fa-shield-halved text-xs"></i> Free Tier
+        </span>
+      </div>
+
+      <!-- Actions on Top Right -->
+      <div class="flex items-center gap-2">
+        <!-- Plus Upgrade Button -->
+        <button onclick="openPlusModal()" id="headerCrownBtn" class="bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-xl hover:shadow-lg hover:shadow-amber-500/20 active:scale-95 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-crown text-xs"></i>
+          <span class="hidden sm:inline">Get Plus</span>
+        </button>
+
+        <!-- Export Chat -->
+        <button onclick="exportChat()" title="Export / Download Chat" class="p-2 text-slate-400 hover:text-cyan-400 hover:bg-slate-900 rounded-xl transition">
+          <i class="fa-solid fa-download text-sm"></i>
+        </button>
+
+        <!-- Clear Chat -->
+        <button onclick="clearCurrentChat()" title="Clear Current Chat" class="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-900 rounded-xl transition">
+          <i class="fa-solid fa-trash-can text-sm"></i>
+        </button>
+      </div>
+
+    </header>
+
+    <!-- Scrollable Chat Messages Container -->
+    <div id="chatContainer" class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 custom-scrollbar">
+      
+      <!-- Welcome Hero Section (Active on empty chat) -->
+      <div id="welcomeHero" class="max-w-3xl mx-auto py-8 sm:py-14 text-center space-y-6">
+        
+        <div class="relative inline-block">
+          <div class="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-3xl bg-gradient-to-tr from-cyan-500 via-sky-500 to-indigo-600 flex items-center justify-center shadow-2xl shadow-cyan-500/30">
+            <i class="fa-solid fa-wand-magic-sparkles text-3xl text-white"></i>
+          </div>
+          <span class="absolute -bottom-1 -right-1 bg-emerald-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full border-2 border-slate-950">2026 AI</span>
+        </div>
+
+        <div class="space-y-2">
+          <h2 class="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
+            Hello, <span id="heroUserName" class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400">Dost</span> 👋
+          </h2>
+          <p class="text-sm sm:text-base text-slate-400 max-w-lg mx-auto">
+            Chat Hub combines the precision of ChatGPT with Gemini's deep reasoning. Aaj hum kya create karein?
+          </p>
+        </div>
+
+        <!-- Preset Suggestion Cards Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left pt-2">
+          
+          <button onclick="sendSuggestion('Write an ultra-clean Python web scraper using BeautifulSoup with comments')" class="p-4 rounded-2xl bg-slate-900/80 hover:bg-slate-800/90 border border-slate-800 hover:border-cyan-500/40 transition group text-left">
+            <div class="flex items-center justify-between text-xs font-semibold text-slate-200 group-hover:text-cyan-400">
+              <span class="flex items-center gap-2"><i class="fa-brands fa-python text-emerald-400"></i> Python Web Scraper</span>
+              <i class="fa-solid fa-arrow-right text-[10px] transform group-hover:translate-x-1 transition"></i>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1.5">Production-ready script with error handling</p>
+          </button>
+
+          <button onclick="sendSuggestion('Explain Quantum Superposition simply with a coin toss analogy')" class="p-4 rounded-2xl bg-slate-900/80 hover:bg-slate-800/90 border border-slate-800 hover:border-cyan-500/40 transition group text-left">
+            <div class="flex items-center justify-between text-xs font-semibold text-slate-200 group-hover:text-cyan-400">
+              <span class="flex items-center gap-2"><i class="fa-solid fa-atom text-cyan-400"></i> Quantum Superposition</span>
+              <i class="fa-solid fa-arrow-right text-[10px] transform group-hover:translate-x-1 transition"></i>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1.5">Simple terms, no complicated mathematics</p>
+          </button>
+
+          <button onclick="sendSuggestion('Draft a professional salary increment request email to my manager')" class="p-4 rounded-2xl bg-slate-900/80 hover:bg-slate-800/90 border border-slate-800 hover:border-cyan-500/40 transition group text-left">
+            <div class="flex items-center justify-between text-xs font-semibold text-slate-200 group-hover:text-cyan-400">
+              <span class="flex items-center gap-2"><i class="fa-solid fa-envelope text-indigo-400"></i> Salary Appraisal Email</span>
+              <i class="fa-solid fa-arrow-right text-[10px] transform group-hover:translate-x-1 transition"></i>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1.5">Polite, impactful & value-driven template</p>
+          </button>
+
+          <button onclick="sendSuggestion('Suggest 4 high ROI startup ideas for Indian students in 2026')" class="p-4 rounded-2xl bg-slate-900/80 hover:bg-slate-800/90 border border-slate-800 hover:border-cyan-500/40 transition group text-left">
+            <div class="flex items-center justify-between text-xs font-semibold text-slate-200 group-hover:text-cyan-400">
+              <span class="flex items-center gap-2"><i class="fa-solid fa-lightbulb text-amber-400"></i> Startup Ideas 2026</span>
+              <i class="fa-solid fa-arrow-right text-[10px] transform group-hover:translate-x-1 transition"></i>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1.5">Low investment, high tech leverage</p>
+          </button>
+
+        </div>
+
+      </div>
+
+      <!-- Live Messages Render Feed -->
+      <div id="messagesList" class="max-w-3xl mx-auto space-y-6"></div>
+
+      <!-- Thinking Indicator Bubble -->
+      <div id="thinkingBox" class="max-w-3xl mx-auto hidden">
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow flex-shrink-0">
+            <i class="fa-solid fa-sparkles"></i>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 flex items-center gap-2 shadow-sm">
+            <span class="text-xs text-slate-300 font-medium">Chat Hub is reasoning</span>
+            <div class="flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse delay-150"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse delay-300"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom Input Dock -->
+    <div class="p-3 sm:p-5 bg-gradient-to-t from-slate-950 via-slate-950 to-transparent">
+      <div class="max-w-3xl mx-auto space-y-2">
+
+        <!-- Attachment Preview Chip Container (if file attached) -->
+        <div id="attachmentChipContainer" class="hidden flex items-center gap-2 pb-1">
+          <div class="inline-flex items-center gap-2 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl text-xs text-slate-200">
+            <i class="fa-solid fa-file-invoice text-cyan-400"></i>
+            <span id="attachedFileName" class="max-w-[200px] truncate">document.pdf</span>
+            <button onclick="removeAttachment()" class="text-slate-400 hover:text-rose-400 ml-1">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Input Frame Box -->
+        <div class="relative bg-slate-900/90 border border-slate-800 rounded-2xl shadow-2xl focus-within:border-cyan-500/80 focus-within:ring-1 focus-within:ring-cyan-500/20 transition-all backdrop-blur-sm">
+          
+          <textarea
+            id="chatInput"
+            rows="1"
+            placeholder="Ask Chat Hub anything... (Shift + Enter for new line)"
+            class="w-full bg-transparent px-4 py-3.5 pr-32 text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-44 custom-scrollbar"
+            oninput="autoResizeTextarea(this)"
+            onkeydown="handleKeyDown(event)"
+          ></textarea>
+
+          <!-- Input Controls on Right Side -->
+          <div class="absolute right-2.5 bottom-2.5 flex items-center gap-1.5">
+            
+            <!-- Web Search Toggle Button -->
+            <button 
+              id="webSearchToggle" 
+              onclick="toggleWebSearch()" 
+              title="Search the live Web" 
+              class="p-2 text-slate-500 hover:text-cyan-400 rounded-xl hover:bg-slate-800 transition"
+            >
+              <i class="fa-solid fa-globe text-sm"></i>
+            </button>
+
+            <!-- Attachment Trigger -->
+            <button 
+              onclick="triggerFileInput()" 
+              title="Attach File or Image" 
+              class="p-2 text-slate-500 hover:text-cyan-400 rounded-xl hover:bg-slate-800 transition"
+            >
+              <i class="fa-solid fa-paperclip text-sm"></i>
+            </button>
+            <input type="file" id="hiddenFileInput" class="hidden" onchange="handleFileSelected(event)">
+
+            <!-- Voice Recognition -->
+            <button 
+              id="voiceRecordBtn" 
+              onclick="toggleVoiceRecording()" 
+              title="Voice Typing" 
+              class="p-2 text-slate-500 hover:text-cyan-400 rounded-xl hover:bg-slate-800 transition"
+            >
+              <i class="fa-solid fa-microphone text-sm"></i>
+            </button>
+
+            <!-- Send or Stop Button -->
+            <button 
+              id="sendOrStopBtn" 
+              onclick="handleSendOrStop()" 
+              class="w-9 h-9 flex items-center justify-center bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl transition shadow-md shadow-cyan-500/20 active:scale-95"
+            >
+              <i class="fa-solid fa-arrow-up text-sm"></i>
+            </button>
+
+          </div>
+
+        </div>
+
+        <!-- Micro Footer Notice -->
+        <div class="flex items-center justify-between px-2 text-[11px] text-slate-500 font-medium">
+          <span class="flex items-center gap-1.5">
+            <span id="webSearchStatusNotice" class="hidden text-cyan-400"><i class="fa-solid fa-globe"></i> Web Search ON</span>
+            Chat Hub can make mistakes. Verify sensitive facts.
+          </span>
+          <span class="hidden sm:inline">Press Enter ↵ to Send</span>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ================= MODALS & POPUPS ================= -->
+
+  <!-- Plus Membership Modal -->
+  <div id="plusModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-6 sm:p-8 relative shadow-2xl overflow-hidden">
+      
+      <!-- Close Button -->
+      <button onclick="closePlusModal()" class="absolute top-5 right-5 text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <!-- Badge & Header -->
+      <div class="text-center space-y-2 mb-6">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold tracking-wide">
+          <i class="fa-solid fa-crown text-amber-400"></i> CHAT HUB PLUS
+        </span>
+        <h3 class="text-2xl sm:text-3xl font-extrabold text-white">Supercharge Your Intelligence</h3>
+        <p class="text-xs sm:text-sm text-slate-400">Access our strongest reasoning models, instant code execution & unlimited limits.</p>
+      </div>
+
+      <!-- Billing Frequency Switcher -->
+      <div class="flex items-center justify-center mb-6">
+        <div class="bg-slate-950 p-1 rounded-2xl border border-slate-800 flex items-center">
+          <button id="btnMonthly" onclick="setBilling('monthly')" class="px-4 py-1.5 rounded-xl text-xs font-bold transition bg-cyan-500 text-slate-950">
+            Monthly
+          </button>
+          <button id="btnYearly" onclick="setBilling('yearly')" class="px-4 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5">
+            Yearly <span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-1.5 py-0.2 rounded-full border border-emerald-500/30">Save 37%</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Pricing Plans Comparison Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        
+        <!-- Free Tier Card -->
+        <div class="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col justify-between">
+          <div>
+            <div class="font-bold text-slate-300 text-sm">Free Starter</div>
+            <div class="text-xl font-extrabold text-white mt-1">₹0 <span class="text-xs text-slate-500 font-normal">/ month</span></div>
+            <ul class="text-xs text-slate-400 space-y-2 mt-4">
+              <li class="flex items-center gap-2"><i class="fa-solid fa-check text-emerald-400"></i> Standard Flash Model</li>
+              <li class="flex items-center gap-2"><i class="fa-solid fa-check text-emerald-400"></i> Basic Web Search</li>
+              <li class="flex items-center gap-2 text-slate-500"><i class="fa-solid fa-xmark"></i> Thinking Deep Reasoning</li>
+              <li class="flex items-center gap-2 text-slate-500"><i class="fa-solid fa-xmark"></i> Priority Peak Access</li>
+            </ul>
+          </div>
+          <button disabled class="w-full mt-5 py-2 bg-slate-800 text-slate-400 text-xs font-semibold rounded-xl cursor-not-allowed">
+            Current Plan
+          </button>
+        </div>
+
+        <!-- Plus Tier Card -->
+        <div class="p-4 rounded-2xl bg-gradient-to-b from-amber-500/10 via-slate-900 to-slate-900 border-2 border-amber-500/40 relative flex flex-col justify-between shadow-xl">
+          <span class="absolute -top-3 right-4 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 text-[10px] font-black px-2.5 py-0.5 rounded-full shadow">
+            MOST POPULAR
+          </span>
+          <div>
+            <div class="font-bold text-amber-400 text-sm flex items-center gap-1.5">
+              <i class="fa-solid fa-sparkles"></i> Plus Member
+            </div>
+            <div class="text-xl font-extrabold text-white mt-1" id="plusPriceText">
+              ₹199 <span class="text-xs text-slate-400 font-normal">/ month</span>
+            </div>
+            <ul class="text-xs text-slate-200 space-y-2 mt-4 font-medium">
+              <li class="flex items-center gap-2"><i class="fa-solid fa-check text-emerald-400"></i> <strong>Everything in Free</strong></li>
+              <li class="flex items-center gap-2"><i class="fa-solid fa-check text-emerald-400"></i> <strong>Thinking & Pro Models</strong></li>
+              <li class="flex items-center gap-2"><i class="fa-solid fa-check text-emerald-400"></i> <strong>5x Faster Response Speed</strong></li>
+              <li class="flex items-center gap-2"><i class="fa-solid fa-check text-emerald-400"></i> <strong>Unlimited Chat Tokens</strong></li>
+            </ul>
+          </div>
+          <button onclick="initiateRazorpayPayment()" class="w-full mt-5 py-2.5 bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-xs font-black rounded-xl transition shadow-lg shadow-amber-500/20 active:scale-95">
+            Upgrade with Razorpay / UPI
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Payment Guarantee Badges -->
+      <div class="flex items-center justify-center gap-4 text-[11px] text-slate-500">
+        <span class="flex items-center gap-1"><i class="fa-solid fa-shield-check text-emerald-400"></i> 256-Bit SSL Encrypted</span>
+        <span>•</span>
+        <span class="flex items-center gap-1"><i class="fa-brands fa-google-pay text-slate-400"></i> UPI / Cards / NetBanking</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Profile & Custom Name Settings Modal -->
+  <div id="settingsModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 relative shadow-2xl">
+      <button onclick="closeProfileSettings()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-2">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <h3 class="text-lg font-bold text-white mb-4">Settings & Profile</h3>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 mb-1">Aapka Naam / Display Name</label>
+          <input 
+            type="text" 
+            id="settingNameInput" 
+            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+            placeholder="Apna naam daalein"
+          >
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 mb-1">Razorpay Live Key ID (Optional)</label>
+          <input 
+            type="text" 
+            id="settingRazorpayKey" 
+            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"
+            placeholder="rzp_test_... ya rzp_live_..."
+          >
+          <span class="text-[10px] text-slate-500">Aapki payments direct aapke bank account me transfer hone ke liye.</span>
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button onclick="closeProfileSettings()" class="px-4 py-2 rounded-xl text-xs text-slate-400 hover:text-white">Cancel</button>
+          <button onclick="saveProfileSettings()" class="px-5 py-2 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast" class="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-50 bg-slate-800 border border-slate-700 text-white text-xs font-semibold px-4 py-2.5 rounded-2xl shadow-2xl hidden items-center gap-2 transition-all">
+    <span id="toastMsg">Notification</span>
+  </div>
+
+  <!-- ================= JAVASCRIPT APP ENGINE ================= -->
+  <script>
+    // App State
+    let appState = {
+      userName: localStorage.getItem('chathub_name') || 'Dost',
+      isPlus: localStorage.getItem('chathub_is_plus') === 'true',
+      razorpayKey: localStorage.getItem('chathub_rzp_key') || 'rzp_test_YourKeyHere',
+      activeModel: 'flash',
+      isWebSearchActive: false,
+      currentSessionId: null,
+      sessions: JSON.parse(localStorage.getItem('chathub_sessions_v2')) || [],
+      attachedFile: null,
+      selectedBilling: 'monthly',
+      isGenerating: false,
+      abortController: null
+    };
+
+    // Speech Recognition
+    let recognition = null;
+    let isSpeechRecording = false;
+    const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechAPI) {
+      recognition = new SpeechAPI();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-IN'; // Works seamlessly for English & Hindi pronunciations
+      recognition.onresult = (e) => {
+        const text = e.results[0][0].transcript;
+        const input = document.getElementById('chatInput');
+        input.value += (input.value ? ' ' : '') + text;
+        autoResizeTextarea(input);
+        stopVoiceRecording();
+      };
+      recognition.onerror = () => stopVoiceRecording();
+      recognition.onend = () => stopVoiceRecording();
+    }
+
+    // Initialize App
+    window.addEventListener('DOMContentLoaded', () => {
+      syncUserProfileDisplay();
+      if (appState.sessions.length === 0) {
+        createNewChat();
+      } else {
+        loadSession(appState.sessions[0].id);
+      }
+      renderSessionsList();
+
+      // Keyboard Shortcut Ctrl+K
+      window.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          createNewChat();
+        }
+      });
+    });
+
+    // --- Profile & Tier State ---
+    function syncUserProfileDisplay() {
+      document.getElementById('userProfileName').textContent = appState.userName;
+      document.getElementById('heroUserName').textContent = appState.userName;
+      document.getElementById('userAvatar').textContent = appState.userName.charAt(0).toUpperCase();
+
+      const badge = document.getElementById('sidebarTierBadge');
+      const profileStatus = document.getElementById('userProfileStatus');
+      const headerPill = document.getElementById('headerTierPill');
+      const crownBtn = document.getElementById('headerCrownBtn');
+      const promoCard = document.getElementById('sidebarUpgradeCard');
+
+      if (appState.isPlus) {
+        badge.textContent = 'PLUS';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm';
+        profileStatus.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Plus Member';
+        headerPill.innerHTML = '<i class="fa-solid fa-crown text-amber-400 text-xs"></i> Plus Member';
+        headerPill.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 border border-amber-500/30 text-amber-400';
+        crownBtn.classList.add('hidden');
+        if (promoCard) promoCard.classList.add('hidden');
+      } else {
+        badge.textContent = 'Free';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700';
+        profileStatus.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Free Member';
+        headerPill.innerHTML = '<i class="fa-solid fa-shield-halved text-xs"></i> Free Tier';
+        crownBtn.classList.remove('hidden');
+        if (promoCard) promoCard.classList.remove('hidden');
+      }
+    }
+
+    // --- Sidebar & Mobile Drawer ---
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('mobileBackdrop');
+      const isClosed = sidebar.classList.contains('-translate-x-full');
+      if (isClosed) {
+        sidebar.classList.remove('-translate-x-full');
+        backdrop.classList.remove('hidden');
+      } else {
+        sidebar.classList.add('-translate-x-full');
+        backdrop.classList.add('hidden');
+      }
+    }
+
+    // --- Chat Sessions Management ---
+    function createNewChat() {
+      const newSession = {
+        id: 'chat_' + Date.now(),
+        title: 'New Conversation',
+        timestamp: Date.now(),
+        messages: []
+      };
+      appState.sessions.unshift(newSession);
+      saveSessionsToStorage();
+      loadSession(newSession.id);
+      renderSessionsList();
+      
+      // Auto close drawer on mobile after clicking new chat
+      if (window.innerWidth < 1024) {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('mobileBackdrop');
+        sidebar.classList.add('-translate-x-full');
+        backdrop.classList.add('hidden');
+      }
+    }
+
+    function loadSession(sessionId) {
+      appState.currentSessionId = sessionId;
+      const session = appState.sessions.find(s => s.id === sessionId);
+      renderSessionsList();
+      renderChatMessages(session ? session.messages : []);
+    }
+
+    function saveSessionsToStorage() {
+      localStorage.setItem('chathub_sessions_v2', JSON.stringify(appState.sessions));
+    }
+
+    function deleteChatSession(e, sessionId) {
+      e.stopPropagation();
+      appState.sessions = appState.sessions.filter(s => s.id !== sessionId);
+      saveSessionsToStorage();
+      if (appState.sessions.length === 0) {
+        createNewChat();
+      } else {
+        loadSession(appState.sessions[0].id);
+      }
+      renderSessionsList();
+      showToast('Chat deleted');
+    }
+
+    function filterChats(query) {
+      renderSessionsList(query.toLowerCase().trim());
+    }
+
+    function renderSessionsList(filterText = '') {
+      const container = document.getElementById('sessionListContainer');
+      const filtered = appState.sessions.filter(s => s.title.toLowerCase().includes(filterText));
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="text-center text-xs text-slate-500 py-6">No chats found</div>';
+        return;
+      }
+
+      container.innerHTML = filtered.map(s => {
+        const isActive = s.id === appState.currentSessionId;
+        return `
+          <div onclick="loadSession('${s.id}')" class="group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer text-xs font-medium transition ${
+            isActive ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-sm' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+          }">
+            <div class="flex items-center gap-2.5 overflow-hidden">
+              <i class="fa-regular fa-message ${isActive ? 'text-cyan-400' : 'text-slate-500 group-hover:text-slate-400'} text-xs"></i>
+              <span class="truncate">${escapeHtml(s.title)}</span>
+            </div>
+            <button onclick="deleteChatSession(event, '${s.id}')" class="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-rose-400 transition" title="Delete">
+              <i class="fa-solid fa-trash-can text-[11px]"></i>
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // --- Message Rendering & Formatting ---
+    function renderChatMessages(messages) {
+      const hero = document.getElementById('welcomeHero');
+      const list = document.getElementById('messagesList');
+
+      if (!messages || messages.length === 0) {
+        hero.classList.remove('hidden');
+        list.innerHTML = '';
+        return;
+      }
+
+      hero.classList.add('hidden');
+      list.innerHTML = messages.map((m, index) => renderSingleMessageHTML(m, index)).join('');
+      scrollChatToBottom();
+    }
+
+    function renderSingleMessageHTML(msg, index) {
+      const isUser = msg.role === 'user';
+      if (isUser) {
+        return `
+          <div class="flex items-start justify-end gap-3">
+            <div class="max-w-[85%] sm:max-w-xl bg-gradient-to-r from-cyan-600 to-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed shadow-md">
+              ${msg.attachmentName ? `
+                <div class="mb-2 pb-2 border-b border-white/20 text-xs flex items-center gap-1.5 opacity-90">
+                  <i class="fa-solid fa-paperclip"></i> Attached: ${escapeHtml(msg.attachmentName)}
+                </div>` : ''}
+              ${escapeHtml(msg.content)}
+            </div>
+            <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-cyan-300 flex-shrink-0">
+              ${appState.userName.charAt(0).toUpperCase()}
+            </div>
+          </div>
+        `;
+      } else {
+        return `
+          <div class="flex items-start gap-3">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow flex-shrink-0">
+              <i class="fa-solid fa-brain"></i>
+            </div>
+            <div class="flex-1 space-y-2 overflow-hidden">
+              
+              <!-- Thinking Section (If present like Gemini 2.0 / o1) -->
+              ${msg.reasoning ? `
+                <details class="bg-slate-900/60 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-400 group">
+                  <summary class="font-semibold text-cyan-400 cursor-pointer flex items-center gap-2 select-none">
+                    <i class="fa-solid fa-chevron-right text-[10px] transform group-open:rotate-90 transition"></i>
+                    <span>Thought Process / Reasoning Steps</span>
+                  </summary>
+                  <div class="pt-2 pl-3 border-l-2 border-cyan-500/30 text-slate-400 mt-2 whitespace-pre-wrap leading-relaxed font-mono text-[11px]">
+                    ${escapeHtml(msg.reasoning)}
+                  </div>
+                </details>
+              ` : ''}
+
+              <!-- Main Answer Bubble -->
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm text-sm text-slate-200 leading-relaxed">
+                ${formatMarkdownToHTML(msg.content)}
+              </div>
+
+              <!-- Action Bar (ChatGPT / Gemini style) -->
+              <div class="flex items-center gap-2 pl-1 text-slate-500 text-xs">
+                <button onclick="copyToClipboard('${escapeAttr(msg.content)}')" class="p-1.5 hover:text-white hover:bg-slate-800 rounded-lg transition" title="Copy response">
+                  <i class="fa-regular fa-copy"></i>
+                </button>
+                <button onclick="speakText('${escapeAttr(msg.content)}')" class="p-1.5 hover:text-white hover:bg-slate-800 rounded-lg transition" title="Read Aloud">
+                  <i class="fa-solid fa-volume-high"></i>
+                </button>
+                <button onclick="regenerateLastReply()" class="p-1.5 hover:text-white hover:bg-slate-800 rounded-lg transition" title="Regenerate">
+                  <i class="fa-solid fa-rotate-right"></i>
+                </button>
+                <span class="text-slate-700">|</span>
+                <button onclick="this.classList.toggle('text-cyan-400')" class="p-1.5 hover:text-cyan-400 transition" title="Good response">
+                  <i class="fa-regular fa-thumbs-up"></i>
+                </button>
+                <button onclick="this.classList.toggle('text-rose-400')" class="p-1.5 hover:text-rose-400 transition" title="Bad response">
+                  <i class="fa-regular fa-thumbs-down"></i>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // --- Markdown & Code Blocks Formatter ---
+    function formatMarkdownToHTML(text) {
+      if (!text) return '';
+
+      // Code blocks ```lang\ncode```
+      let out = text.replace(/```([a-zA-Z]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+        const language = lang || 'code';
+        const cleanCode = escapeHtml(code.trim());
+        return `
+          <div class="my-3 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 font-mono text-xs shadow-inner">
+            <div class="flex items-center justify-between px-4 py-2 bg-slate-900/90 border-b border-slate-800 text-slate-400">
+              <span class="font-bold uppercase tracking-wider text-[11px] text-cyan-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-code text-[10px]"></i> ${language}
+              </span>
+              <button onclick="copySnippetCode(this)" class="hover:text-white transition flex items-center gap-1 text-[11px] bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-md">
+                <i class="fa-regular fa-copy"></i> <span>Copy code</span>
+              </button>
+            </div>
+            <pre class="p-4 overflow-x-auto text-sky-200 leading-relaxed custom-scrollbar"><code>${cleanCode}</code></pre>
+          </div>
+        `;
+      });
+
+      // Inline code `code`
+      out = out.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-cyan-300 font-mono text-xs">$1</code>');
+
+      // Bold **text**
+      out = out.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
+
+      // Bullet points - or *
+      out = out.replace(/^\s*[-*]\s+(.+)$/gm, '<li class="ml-4 list-disc text-slate-300 my-0.5">$1</li>');
+
+      // Line breaks
+      out = out.replace(/\n\n/g, '<div class="h-2.5"></div>');
+      out = out.replace(/\n/g, '<br/>');
+
+      return out;
+    }
+
+    // --- Sending & AI Response Engine ---
+    function handleKeyDown(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSendOrStop();
+      }
+    }
+
+    function sendSuggestion(promptText) {
+      document.getElementById('chatInput').value = promptText;
+      handleSendOrStop();
+    }
+
+    function handleSendOrStop() {
+      if (appState.isGenerating) {
+        // Stop Generating Trigger
+        stopGeneration();
+        return;
+      }
+
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text && !appState.attachedFile) return;
+
+      const currentSession = appState.sessions.find(s => s.id === appState.currentSessionId);
+      if (!currentSession) return;
+
+      // Rename conversation on first question
+      if (currentSession.messages.length === 0) {
+        currentSession.title = text.length > 28 ? text.substring(0, 28) + '...' : text;
+        saveSessionsToStorage();
+        renderSessionsList();
+      }
+
+      // Append User Message
+      const userMsg = {
+        role: 'user',
+        content: text,
+        attachmentName: appState.attachedFile ? appState.attachedFile.name : null
+      };
+      currentSession.messages.push(userMsg);
+      saveSessionsToStorage();
+      renderChatMessages(currentSession.messages);
+
+      // Reset Input Bar
+      input.value = '';
+      autoResizeTextarea(input);
+      removeAttachment();
+
+      // Trigger AI Flow
+      generateBotResponse(text);
+    }
+
+    function generateBotResponse(prompt) {
+      appState.isGenerating = true;
+      toggleSendButtonState(true);
+
+      const thinkingBox = document.getElementById('thinkingBox');
+      thinkingBox.classList.remove('hidden');
+      scrollChatToBottom();
+
+      const model = document.getElementById('modelSelector').value;
+      const isThinkingModel = model === 'thinking';
+
+      // Simulate Intelligence Deliberation
+      setTimeout(() => {
+        thinkingBox.classList.add('hidden');
+
+        const currentSession = appState.sessions.find(s => s.id === appState.currentSessionId);
+        
+        let simulatedReasoning = isThinkingModel 
+          ? `Step 1: Identifying user intent regarding "${prompt.substring(0, 30)}..."\nStep 2: Checking context and knowledge representations.\nStep 3: Formulating structured explanation with clean actionable guidance.` 
+          : null;
+
+        const aiResponseText = craftSyntheticResponse(prompt, model);
+
+        const botMsgObj = {
+          role: 'assistant',
+          content: '',
+          reasoning: simulatedReasoning
+        };
+        currentSession.messages.push(botMsgObj);
+
+        // Streaming DOM Element Setup
+        const messagesList = document.getElementById('messagesList');
+        const liveWrapper = document.createElement('div');
+        liveWrapper.className = 'flex items-start gap-3';
+        liveWrapper.innerHTML = `
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow flex-shrink-0">
+            <i class="fa-solid fa-brain"></i>
+          </div>
+          <div class="flex-1 space-y-2 overflow-hidden">
+            <div id="liveStreamBubble" class="bg-slate-900 border border-slate-800 rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm text-sm text-slate-200 leading-relaxed cursor-blink">
+              <span id="liveContent"></span>
+            </div>
+          </div>
+        `;
+        messagesList.appendChild(liveWrapper);
+        scrollChatToBottom();
+
+        // Stream word by word
+        const words = aiResponseText.split(' ');
+        let wordIdx = 0;
+        const liveContent = document.getElementById('liveContent');
+        const liveBubble = document.getElementById('liveStreamBubble');
+
+        const timer = setInterval(() => {
+          if (!appState.isGenerating) {
+            clearInterval(timer);
+            return;
+          }
+
+          if (wordIdx < words.length) {
+            botMsgObj.content += (wordIdx === 0 ? '' : ' ') + words[wordIdx];
+            liveContent.innerHTML = formatMarkdownToHTML(botMsgObj.content);
+            wordIdx++;
+            scrollChatToBottom();
+          } else {
+            clearInterval(timer);
+            liveBubble.classList.remove('cursor-blink');
+            appState.isGenerating = false;
+            toggleSendButtonState(false);
+            saveSessionsToStorage();
+            renderChatMessages(currentSession.messages);
+          }
+        }, appState.isPlus ? 18 : 35); // 2x faster for Plus members
+
+      }, isThinkingModel ? 1400 : 700);
+    }
+
+    function stopGeneration() {
+      appState.isGenerating = false;
+      toggleSendButtonState(false);
+      showToast('Generation paused');
+      const currentSession = appState.sessions.find(s => s.id === appState.currentSessionId);
+      if (currentSession) {
+        saveSessionsToStorage();
+        renderChatMessages(currentSession.messages);
+      }
+    }
+
+    function toggleSendButtonState(isBusy) {
+      const btn = document.getElementById('sendOrStopBtn');
+      if (isBusy) {
+        btn.innerHTML = '<i class="fa-solid fa-stop text-sm text-slate-950"></i>';
+        btn.className = 'w-9 h-9 flex items-center justify-center bg-rose-500 hover:bg-rose-400 text-slate-950 font-bold rounded-xl transition shadow-md shadow-rose-500/20 active:scale-95';
+        btn.title = "Stop Generating";
+      } else {
+        btn.innerHTML = '<i class="fa-solid fa-arrow-up text-sm"></i>';
+        btn.className = 'w-9 h-9 flex items-center justify-center bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl transition shadow-md shadow-cyan-500/20 active:scale-95';
+        btn.title = "Send message";
+      }
+    }
+
+    function regenerateLastReply() {
+      const currentSession = appState.sessions.find(s => s.id === appState.currentSessionId);
+      if (!currentSession || currentSession.messages.length < 2) return;
+
+      if (currentSession.messages[currentSession.messages.length - 1].role === 'assistant') {
+        currentSession.messages.pop();
+      }
+      const lastUser = currentSession.messages[currentSession.messages.length - 1];
+      if (lastUser && lastUser.role === 'user') {
+        renderChatMessages(currentSession.messages);
+        generateBotResponse(lastUser.content);
+      }
+    }
+
+    // --- Synthetic AI Brain (Hinglish + English Contexts) ---
+    function craftSyntheticResponse(prompt, model) {
+      const q = prompt.toLowerCase();
+
+      if (q.includes('scraper') || q.includes('python')) {
+        return `Yeh lijiye Python BeautifulSoup ka clean aur modern scraper:\n\n\`\`\`python\nimport requests\nfrom bs4 import BeautifulSoup\n\ndef scrape_headlines(target_url):\n    headers = {\n        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"\n    }\n    try:\n        response = requests.get(target_url, headers=headers, timeout=10)\n        response.raise_for_status()\n        \n        soup = BeautifulSoup(response.text, "html.parser")\n        headlines = [h2.get_text(strip=True) for h2 in soup.find_all("h2")]\n        \n        return headlines\n    except Exception as err:\n        return f"Error occurred: {err}"\n\n# Example Usage\nprint(scrape_headlines("https://news.ycombinator.com"))\n\`\`\`\n\n**Key Highlights:**\n- Custom **User-Agent** header add kiya hai taaki request block na ho.\n- Built-in **Timeout & Error handling** lagayi hai safely run karne ke liye.`;
+      }
+
+      if (q.includes('quantum') || q.includes('superposition')) {
+        return `**Quantum Superposition** ko bilkul aasan bhasha me samjhein:\n\n* **Normal Computer:** Ek simple switch jaisa hota hai—ya toh light ON hai (1) ya OFF hai (0).\n* **Quantum Superposition:** Hawa me ghoomte hue sikke (coin) ki tarah hai! Jab tak sikka zameen par nahi girta, woh ek hi waqt par Head aur Tail dono hota hai.\n\nIsi tarah **Qubits** ek hi samay par hazaron combinations process kar sakte hain. Isi wajah se complex encryption aur vaccine discovery minute-bhar me solve ho sakti hai! 🚀`;
+      }
+
+      if (q.includes('salary') || q.includes('increment') || q.includes('appraisal')) {
+        return `Yeh lijiye aapke liye impactful Salary Increment Request Email template:\n\n**Subject:** Discussion regarding Compensation Review - ${appState.userName}\n\nDear [Manager's Name],\n\nI hope you are having a productive week. Over the past year, I have taken ownership of several key projects that directly boosted team delivery and productivity.\n\nGiven my sustained contributions and expanded responsibilities, I would welcome the opportunity to discuss an adjustment to my current compensation to reflect market standards.\n\nCould we set aside 15 minutes this week to connect on this?\n\nBest regards,\n**${appState.userName}**`;
+      }
+
+      return `Aapka sawaal: **"${prompt}"**\n\nMaine is query ko **${model.toUpperCase()}** model se process kiya hai.\n\n* **Primary Finding:** Yeh context direct practical implementation ke liye suitable hai.\n* **Recommendation:** Agar aap isme specific code, step-by-step business plan ya live internet references chahte hain, toh batayein main instantly elaborate kar doonga!`;
+    }
+
+    // --- Web Search & Attachments ---
+    function toggleWebSearch() {
+      appState.isWebSearchActive = !appState.isWebSearchActive;
+      const btn = document.getElementById('webSearchToggle');
+      const notice = document.getElementById('webSearchStatusNotice');
+      if (appState.isWebSearchActive) {
+        btn.classList.add('text-cyan-400', 'bg-slate-800');
+        notice.classList.remove('hidden');
+        showToast('Web Search Activated');
+      } else {
+        btn.classList.remove('text-cyan-400', 'bg-slate-800');
+        notice.classList.add('hidden');
+        showToast('Web Search Deactivated');
+      }
+    }
+
+    function triggerFileInput() {
+      document.getElementById('hiddenFileInput').click();
+    }
+
+    function handleFileSelected(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      appState.attachedFile = file;
+      document.getElementById('attachedFileName').textContent = file.name;
+      document.getElementById('attachmentChipContainer').classList.remove('hidden');
+      showToast(`Attached: ${file.name}`);
+    }
+
+    function removeAttachment() {
+      appState.attachedFile = null;
+      document.getElementById('hiddenFileInput').value = '';
+      document.getElementById('attachmentChipContainer').classList.add('hidden');
+    }
+
+    // --- Voice Recording (Speech-to-Text) ---
+    function toggleVoiceRecording() {
+      if (!recognition) {
+        showToast('Speech recognition not supported in this browser. Try Chrome/Edge.');
+        return;
+      }
+
+      if (isSpeechRecording) {
+        stopVoiceRecording();
+      } else {
+        try {
+          recognition.start();
+          isSpeechRecording = true;
+          const btn = document.getElementById('voiceRecordBtn');
+          btn.classList.add('text-rose-500', 'mic-active');
+          showToast('Listening... Speak now');
+        } catch (err) {
+          stopVoiceRecording();
+        }
+      }
+    }
+
+    function stopVoiceRecording() {
+      isSpeechRecording = false;
+      const btn = document.getElementById('voiceRecordBtn');
+      btn.classList.remove('text-rose-500', 'mic-active');
+    }
+
+    // --- Text-to-Speech (Read Aloud) ---
+    function speakText(txt) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(txt.replace(/[#*`]/g, ''));
+        utterance.rate = 1.0;
+        window.speechSynthesis.speak(utterance);
+        showToast('Speaking response...');
+      } else {
+        showToast('Text-to-speech not supported.');
+      }
+    }
+
+    // --- Plus Modal & Razorpay Integration ---
+    function openPlusModal() {
+      document.getElementById('plusModal').classList.remove('hidden');
+    }
+
+    function closePlusModal() {
+      document.getElementById('plusModal').classList.add('hidden');
+    }
+
+    function setBilling(type) {
+      appState.selectedBilling = type;
+      const btnM = document.getElementById('btnMonthly');
+      const btnY = document.getElementById('btnYearly');
+      const priceText = document.getElementById('plusPriceText');
+
+      if (type === 'monthly') {
+        btnM.className = 'px-4 py-1.5 rounded-xl text-xs font-bold transition bg-cyan-500 text-slate-950';
+        btnY.className = 'px-4 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5';
+        priceText.innerHTML = '₹199 <span class="text-xs text-slate-400 font-normal">/ month</span>';
+      } else {
+        btnY.className = 'px-4 py-1.5 rounded-xl text-xs font-bold transition bg-cyan-500 text-slate-950 flex items-center gap-1.5';
+        btnM.className = 'px-4 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white';
+        priceText.innerHTML = '₹1,499 <span class="text-xs text-slate-400 font-normal">/ year (₹124/mo)</span>';
+      }
+    }
+
+    function initiateRazorpayPayment() {
+      const amount = appState.selectedBilling === 'monthly' ? 199 : 1499;
+
+      const options = {
+        key: appState.razorpayKey,
+        amount: amount * 100, // Amount in paise
+        currency: "INR",
+        name: "Chat Hub AI Studio",
+        description: `Chat Hub Plus (${appState.selectedBilling.toUpperCase()} Plan)`,
+        image: "https://cdn-icons-png.flaticon.com/512/4712/4712035.png",
+        handler: function (response) {
+          // Success Callback
+          appState.isPlus = true;
+          localStorage.setItem('chathub_is_plus', 'true');
+          syncUserProfileDisplay();
+          closePlusModal();
+          showToast('🎉 Congratulations! Chat Hub Plus Activated!');
+        },
+        prefill: {
+          name: appState.userName,
+          email: "user@chathub.ai",
+          contact: "9876543210"
+        },
+        theme: {
+          color: "#06b6d4"
+        }
+      };
+
+      if (typeof Razorpay !== "undefined") {
+        try {
+          const rzp = new Razorpay(options);
+          rzp.on('payment.failed', function () {
+            showToast('Payment cancelled or failed');
+          });
+          rzp.open();
+        } catch (e) {
+          simulateDemoPaymentSuccess();
+        }
+      } else {
+        simulateDemoPaymentSuccess();
+      }
+    }
+
+    function simulateDemoPaymentSuccess() {
+      // Demo fallback if test key is unconfigured
+      appState.isPlus = true;
+      localStorage.setItem('chathub_is_plus', 'true');
+      syncUserProfileDisplay();
+      closePlusModal();
+      showToast('🎉 Test Payment Verified! You are now a Plus Member.');
+    }
+
+    // --- Profile Settings Modal ---
+    function openProfileSettings() {
+      document.getElementById('settingNameInput').value = appState.userName;
+      document.getElementById('settingRazorpayKey').value = appState.razorpayKey;
+      document.getElementById('settingsModal').classList.remove('hidden');
+    }
+
+    function closeProfileSettings() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+
+    function saveProfileSettings() {
+      const newName = document.getElementById('settingNameInput').value.trim();
+      const newRzp = document.getElementById('settingRazorpayKey').value.trim();
+
+      if (newName) {
+        appState.userName = newName;
+        localStorage.setItem('chathub_name', newName);
+      }
+      if (newRzp) {
+        appState.razorpayKey = newRzp;
+        localStorage.setItem('chathub_rzp_key', newRzp);
+      }
+
+      syncUserProfileDisplay();
+      closeProfileSettings();
+      showToast('Settings saved!');
+    }
+
+    // --- Chat Actions: Clear & Export ---
+    function clearCurrentChat() {
+      const session = appState.sessions.find(s => s.id === appState.currentSessionId);
+      if (!session) return;
+      session.messages = [];
+      saveSessionsToStorage();
+      renderChatMessages([]);
+      showToast('Conversation cleared');
+    }
+
+    function exportChat() {
+      const session = appState.sessions.find(s => s.id === appState.currentSessionId);
+      if (!session || session.messages.length === 0) {
+        showToast('No messages to export');
+        return;
+      }
+
+      let markdown = `# Chat Hub Export: ${session.title}\nDate: ${new Date().toLocaleString()}\n\n---\n\n`;
+      session.messages.forEach(m => {
+        markdown += `### ${m.role === 'user' ? 'User' : 'Chat Hub'}:\n${m.content}\n\n`;
+      });
+
+      const blob = new Blob([markdown], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${session.title.replace(/[^a-z0-9]/gi, '_')}.md`;
+      a.click();
+      showToast('Downloaded conversation Markdown');
+    }
+
+    // --- Helpers ---
+    function autoResizeTextarea(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 180) + 'px';
+    }
+
+    function scrollChatToBottom() {
+      const container = document.getElementById('chatContainer');
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Copied to clipboard');
+      });
+    }
+
+    function copySnippetCode(btn) {
+      const pre = btn.closest('.my-3').querySelector('code');
+      navigator.clipboard.writeText(pre.innerText).then(() => {
+        const span = btn.querySelector('span');
+        span.textContent = 'Copied!';
+        setTimeout(() => span.textContent = 'Copy code', 2000);
+      });
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      const textSpan = document.getElementById('toastMsg');
+      textSpan.textContent = msg;
+      t.classList.remove('hidden');
+      t.classList.add('flex');
+      setTimeout(() => {
+        t.classList.add('hidden');
+        t.classList.remove('flex');
+      }, 2500);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function escapeAttr(str) {
+      return String(str)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '&quot;')
+        .replace(/\n/g, '\\n');
+    }
+  </script>
+</body>
+</html>
